@@ -1,0 +1,116 @@
+version: "3.8"
+
+services:
+  # Servicio principal de Chatwoot
+  chatwoot_app:
+    image: chatwoot/chatwoot:v3.16.0
+    command: bundle exec rails s -p 3000 -b 0.0.0.0
+    entrypoint: docker/entrypoints/rails.sh
+    volumes:
+      - chatwoot_data:/app/storage
+    networks:
+      - traefik_public
+      - general_network
+    environment:
+      INSTALLATION_NAME: chatwootiabot
+      NODE_ENV: production
+      RAILS_ENV: production
+      INSTALLATION_ENV: docker
+      SECRET_KEY_BASE: ac70a4f7e59d1a60c52050237123fd91
+      FRONTEND_URL: http://smartwoot.iabot.com.co
+      DEFAULT_LOCALE: es_ES
+      FORCE_SSL: "true"
+      ENABLE_ACCOUNT_SIGNUP: "false"
+      REDIS_URL: redis://redis:6379
+      MAILER_SENDER_EMAIL: Chatwoot crojas@iabot.com.co
+      SMTP_DOMAIN: gmail.com
+      SMTP_ADDRESS: smtp.gmail.com
+      SMTP_PORT: 587
+      SMTP_USERNAME: crojas@iabot.com.co
+      SMTP_PASSWORD: mtotsdonboworemw
+      SMTP_AUTHENTICATION: login
+      SMTP_ENABLE_STARTTLS_AUTO: "true"
+      SMTP_OPENSSL_VERIFY_MODE: peer
+      MAILER_HOST: mailer_host
+      DATABASE_URL: postgres://chatwoot:password@postgres:5432/chatwoot
+    depends_on:
+      - redis
+      - postgres
+      - minio
+
+  # Base de datos PostgreSQL
+  postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: chatwoot
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: chatwoot
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - general_network
+
+  # Redis para almacenamiento en caché y otras funciones
+  redis:
+    image: redis:6
+    networks:
+      - general_network
+
+  # MinIO para almacenamiento de archivos
+  minio:
+    image: minio/minio
+    environment:
+      MINIO_ACCESS_KEY: minio_access_key
+      MINIO_SECRET_KEY: minio_secret_key
+    command: server /data
+    ports:
+      - "9000:9000"
+    volumes:
+      - minio_data:/data
+    networks:
+      - general_network
+
+  # Traefik (como proxy inverso)
+  traefik:
+    image: traefik:v2.5
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "80:80"
+      - "8080:8080"
+    networks:
+      - traefik_public
+
+  # Portainer para la gestión de contenedores
+  portainer:
+    image: portainer/portainer-ce
+    environment:
+      - "HTTP_PORT=9000"
+    networks:
+      - general_network
+    ports:
+      - "9000:9000"
+
+  # N8N (para automatización de flujos)
+  n8n:
+    image: n8nio/n8n
+    environment:
+      - N8N_BASIC_AUTH_USER=user
+      - N8N_BASIC_AUTH_PASSWORD=password
+    networks:
+      - general_network
+    ports:
+      - "5678:5678"
+
+networks:
+  traefik_public:
+    external: true
+  general_network:
+    driver: bridge
+
+volumes:
+  chatwoot_data:
+  postgres_data:
+  minio_data:
